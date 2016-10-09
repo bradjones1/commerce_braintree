@@ -3,6 +3,8 @@
 namespace Drupal\commerce_braintree\Plugin\Commerce\PaymentGateway;
 
 use Drupal\commerce_braintree\ErrorHelper;
+use Drupal\commerce_braintree\Event\BraintreeEvents;
+use Drupal\commerce_braintree\Event\PaymentEvent;
 use Drupal\commerce_payment\CreditCard;
 use Drupal\commerce_payment\Entity\PaymentInterface;
 use Drupal\commerce_payment\Entity\PaymentMethodInterface;
@@ -14,6 +16,7 @@ use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OnsitePaymentGatewayB
 use Drupal\commerce_price\Price;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Provides the HostedFields payment gateway.
@@ -178,8 +181,12 @@ class HostedFields extends OnsitePaymentGatewayBase implements HostedFieldsInter
       $transaction_data['paymentMethodNonce'] = $payment_method->getRemoteId();
     }
 
+    $event = new PaymentEvent($transaction_data, $payment);
+    /** @var EventDispatcherInterface $dispatcher */
+    $dispatcher = \Drupal::service('event_dispatcher');
+    $dispatcher->dispatch(BraintreeEvents::PAYMENT_DATA, $event);
     try {
-      $result = $this->api->transaction()->sale($transaction_data);
+      $result = $this->api->transaction()->sale($event->getTransactionData());
       ErrorHelper::handleErrors($result);
     }
     catch (\Braintree\Exception $e) {
